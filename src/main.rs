@@ -1,21 +1,13 @@
 #![allow(unused)]
 
+mod lib;
+use lib::{environment::*, types::*};
+
 use std::collections::HashMap;
 use std::io::{self, prelude::*, StderrLock, StdinLock, StdoutLock};
 
 #[derive(Debug, PartialEq)]
 pub enum Error {}
-
-pub type Scope = HashMap<String, Value>;
-pub type Symbol = String;
-pub type List = Vec<Value>;
-
-#[derive(Debug, PartialEq)]
-pub enum Value {
-  Symbol(Symbol),
-  Number(f64),
-  List(List),
-}
 
 pub fn tokenize(program: &str) -> Vec<String> {
   program
@@ -30,42 +22,6 @@ pub fn parse<'a>(tokens: &'a [String]) -> Result<(Value, &'a [String]), Error> {
   unimplemented!()
 }
 
-pub struct Environment {
-  scopes: Vec<Scope>,
-}
-impl Environment {
-  pub fn init() -> Environment {
-    let mut scopes = Vec::new();
-    scopes.push(Scope::new());
-    Environment { scopes }
-  }
-
-  pub fn push_scope(&mut self) {
-    self.scopes.push(Scope::new());
-  }
-
-  pub fn pop_scope(&mut self) {
-    self.scopes.pop();
-  }
-
-  pub fn get(&self, symbol: &str) -> Option<&Value> {
-    self
-      .scopes
-      .iter()
-      .rev()
-      .find(|scope| scope.contains_key(symbol))
-      .and_then(|scope| scope.get(symbol))
-  }
-
-  pub fn set(&mut self, symbol: String, value: Value) {
-    self
-      .scopes
-      .iter_mut()
-      .last()
-      .and_then(|mut scope| scope.insert(symbol, value));
-  }
-}
-
 fn main() -> io::Result<()> {
   let stdin = io::stdin();
   let stdout = io::stdout();
@@ -75,26 +31,20 @@ fn main() -> io::Result<()> {
     let mut stdin = stdin.lock();
     let mut stdout = stdout.lock();
     let mut stderr = stderr.lock();
-
     let mut input_buf = String::new();
     loop {
       stdout.write(b" lisp > ");
       stdout.flush();
 
-      stdin.read_line(&mut input_buf);
-      process_input(&input_buf, &mut stdin, &mut stdout, &mut stderr);
+      stdin.read_line(&mut input_buf)?;
 
+      process_input(&input_buf);
       input_buf.clear();
     }
   }
 }
 
-fn process_input(
-  input: &str,
-  stdin: &mut StdinLock,
-  stdout: &mut StdoutLock,
-  stderr: &mut StderrLock,
-) {
+fn process_input(input: &str) {
   match input {
     "" => std::process::exit(0),
     _ => {
@@ -133,13 +83,16 @@ mod tests {
   fn basic_addition() {
     let expr = "(+ 137 349)";
     let tokens = tokenize(&expr);
+
     assert_eq!(tokens, vec!["(", "+", "137", "349", ")"]);
+
     let inner_tokens: Vec<String> = vec!["137".into(), "349".into()];
-    let parsed = parse(&tokens);
+    let parsed = parse(&tokens).unwrap();
+
     assert_eq!(
       parsed,
-      Ok((Value::Symbol(Symbol::from("+")), inner_tokens.into()))
-    )
+      (Value::Symbol(Symbol::from("+")), inner_tokens.as_ref())
+    );
   }
 
   #[test]
